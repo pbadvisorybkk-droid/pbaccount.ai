@@ -1,0 +1,251 @@
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThaiLedger AI — บัญชีและภาษีฟรี</title>
+<style>
+:root {
+  font-family: system-ui, sans-serif;
+  color: #182338;
+  background: #f4f7fb;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+header {
+  background: #102d50;
+  color: white;
+  padding: 22px max(20px, calc((100% - 1000px)/2));
+}
+header h1 { margin: 0 0 6px; font-size: 24px; }
+header p { margin: 0; color: #d4e3f6; }
+main { max-width: 1000px; margin: 28px auto; padding: 0 18px; }
+.card {
+  background: white; border: 1px solid #dfe6ef;
+  border-radius: 14px; padding: 22px; margin-bottom: 18px;
+}
+h2 { font-size: 19px; margin-top: 0; }
+label { display: block; margin: 14px 0 7px; font-weight: 600; }
+input, select, textarea, button {
+  font: inherit; width: 100%; padding: 12px;
+  border-radius: 8px; border: 1px solid #cbd5e1;
+}
+textarea { min-height: 95px; resize: vertical; }
+button { cursor: pointer; font-weight: 650; }
+.primary { background: #1758a6; color: white; border: 0; }
+.secondary { background: white; color: #1758a6; }
+.actions { display: flex; gap: 10px; margin-top: 16px; }
+.actions button { flex: 1; }
+.note { color: #526176; font-size: 14px; line-height: 1.65; }
+.status { padding: 12px; background: #eef6ff; border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 10px 7px; border-bottom: 1px solid #e5eaf0; }
+th { background: #f7f9fc; }
+.num { text-align: right; }
+.hidden { display: none; }
+footer { text-align: center; color: #66758a; padding: 20px; font-size: 13px; }
+@media(max-width:600px) {
+  main { margin-top: 16px; }
+  .card { padding: 16px; }
+  .actions { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>ThaiLedger AI</h1>
+  <p>ผู้ช่วยบัญชีและภาษีไทย · ฟรี · ไม่บันทึกประวัติ</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>วิเคราะห์รายการค้า</h2>
+    <p class="note">
+      ทดลองกรอกรายการซื้อหรือขาย ระบบจะประมวลผลตัวอย่าง
+      ภายในเบราว์เซอร์ โดยไม่ส่งข้อมูลไปยัง AI ภายนอก
+    </p>
+
+    <label for="kind">ประเภทรายการ</label>
+    <select id="kind">
+      <option value="expense">ซื้อสินค้า/ค่าใช้จ่าย จ่ายเงินสด</option>
+      <option value="sale">ขายสินค้า รับเงินสด</option>
+    </select>
+
+    <label for="description">รายละเอียดรายการ</label>
+    <textarea id="description"
+      placeholder="เช่น ซื้ออุปกรณ์สำนักงาน จ่ายเงินสด"></textarea>
+
+    <label for="amount">ยอดก่อน VAT (บาท)</label>
+    <input id="amount" type="number" min="0" step="0.01"
+      placeholder="1000">
+
+    <label for="vat">VAT ที่เกี่ยวข้อง</label>
+    <select id="vat">
+      <option value="0">ไม่มี VAT / ยังไม่ระบุ VAT</option>
+      <option value="7">VAT 7% (กรณีที่เข้าเงื่อนไข)</option>
+    </select>
+
+    <div class="actions">
+      <button class="primary" id="analyze">วิเคราะห์รายการ</button>
+      <button class="secondary" id="clear">ล้างข้อมูล</button>
+    </div>
+  </section>
+
+  <section class="card hidden" id="result" aria-live="polite">
+    <h2>ผลการวิเคราะห์เบื้องต้น</h2>
+    <div id="summary" class="status"></div>
+    <h3>รายการบัญชี Dr./Cr.</h3>
+    <div id="journal"></div>
+    <p id="check" class="note"></p>
+    <p class="note">
+      ผลนี้เป็นเพียงตัวอย่างตามกฎพื้นฐาน ไม่ใช่คำแนะนำ
+      ทางบัญชีหรือภาษีที่ยืนยันได้ ต้องตรวจสอบเอกสารและ
+      เงื่อนไขของธุรกรรมจริงก่อนนำไปใช้
+    </p>
+    <button class="secondary" id="download">ดาวน์โหลด CSV</button>
+  </section>
+
+  <section class="card">
+    <h2>ความเป็นส่วนตัว</h2>
+    <p class="note">
+      ต้นแบบนี้ไม่มีฐานข้อมูล ไม่มีระบบสมาชิก และไม่มีการเรียก AI API
+      ข้อมูลที่กรอกอยู่ในหน้าเว็บจนกว่าจะล้างหรือปิดหน้า
+      การดาวน์โหลด CSV จะบันทึกไฟล์ลงอุปกรณ์ของคุณเอง
+    </p>
+  </section>
+</main>
+<footer>ThaiLedger AI · Prototype 0.1 · บัญชีและภาษีสำหรับทุกคน</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+let latest = null;
+
+function money(n) {
+  return n.toLocaleString("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function analyze() {
+  const kind = $("kind").value;
+  const description = $("description").value.trim();
+  const amount = Number($("amount").value);
+  const rate = Number($("vat").value);
+
+  if (!description) {
+    alert("กรุณากรอกรายละเอียดรายการ");
+    return;
+  }
+  if (!Number.isFinite(amount) || amount <= 0) {
+    alert("กรุณากรอกยอดเงินที่มากกว่า 0");
+    return;
+  }
+
+  const vat = Math.round(amount * rate) / 100;
+  const total = amount + vat;
+  const debitAccount = kind === "expense"
+    ? "ค่าใช้จ่าย/สินทรัพย์ — ต้องจำแนกเพิ่มเติม"
+    : "เงินสด";
+  const creditAccount = kind === "expense"
+    ? "เงินสด"
+    : "รายได้จากการขาย";
+
+  // ตัวอย่างกฎพื้นฐาน ไม่ใช่การวินิจฉัยภาษีจริง
+  const rows = [
+    { account: debitAccount, dr: amount, cr: 0 },
+    { account: creditAccount, dr: 0, cr: amount }
+  ];
+
+  if (vat > 0) {
+    if (kind === "expense") {
+      rows[0].dr = total;
+      rows[0].account = "ค่าใช้จ่าย/สินทรัพย์รวม VAT";
+    } else {
+      rows[1].cr = total;
+      rows[1].account = "รายได้/เงินรับรวม VAT (ตัวอย่าง)";
+    }
+  }
+
+  latest = { description, rows, vat, total };
+
+  $("summary").textContent =
+    description + " | ยอดก่อน VAT " + money(amount) +
+    " บาท | VAT ตัวอย่าง " + money(vat) +
+    " บาท | รวม " + money(total) + " บาท";
+
+  $("journal").innerHTML = `
+    <table>
+      <thead><tr>
+        <th>บัญชี (ตัวอย่าง)</th>
+        <th class="num">Dr.</th>
+        <th class="num">Cr.</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td>${escapeHTML(r.account)}</td>
+          <td class="num">${money(r.dr)}</td>
+          <td class="num">${money(r.cr)}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>`;
+
+  const dr = rows.reduce((s, r) => s + r.dr, 0);
+  const cr = rows.reduce((s, r) => s + r.cr, 0);
+  $("check").textContent =
+    "ตรวจยอดตัวอย่าง: Dr. " + money(dr) +
+    " บาท / Cr. " + money(cr) +
+    " บาท — " + (Math.abs(dr-cr) < 0.005
+      ? "ยอดสมดุลทางคณิตศาสตร์"
+      : "ยอดไม่สมดุล ต้องตรวจสอบ");
+
+  $("result").classList.remove("hidden");
+}
+
+function escapeHTML(s) {
+  return s.replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;",
+    '"':"&quot;", "'":"&#39;"
+  })[c]);
+}
+
+function clearAll() {
+  $("description").value = "";
+  $("amount").value = "";
+  $("kind").value = "expense";
+  $("vat").value = "0";
+  $("result").classList.add("hidden");
+  $("summary").textContent = "";
+  $("journal").textContent = "";
+  $("check").textContent = "";
+  latest = null;
+}
+
+$("analyze").addEventListener("click", analyze);
+$("clear").addEventListener("click", clearAll);
+
+$("download").addEventListener("click", () => {
+  if (!latest) return;
+  const csv = [
+    ["รายการ", "บัญชี", "Dr", "Cr"],
+    ...latest.rows.map(r => [
+      latest.description, r.account, r.dr, r.cr
+    ])
+  ].map(row => row.map(v =>
+    '"' + String(v).replace(/"/g, '""') + '"'
+  ).join(",")).join("\r\n");
+
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8;"
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "thailedger-example.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
