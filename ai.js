@@ -2,44 +2,44 @@
 import { pipeline, env } from
   "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
 
-// ใช้โมเดลจากแหล่งเผยแพร่ ไม่ใช้ AI API
 env.allowLocalModels = false;
 
 const MODEL = "onnx-community/SmolLM2-360M-ONNX";
 let generator = null;
 let loading = null;
+let busy = false;
 
-// สร้างหน้าจอ AI เพิ่มโดยไม่แก้ระบบเดิม
 const card = document.createElement("section");
 card.className = "card";
 card.innerHTML = `
-  <h2>Small AI — ผู้ช่วยวิเคราะห์รายการค้า</h2>
+  <h2>PB_Account&amp;Tax — Small AI</h2>
   <p class="note">
-    AI ทดลองทำงานในเบราว์เซอร์ของคุณ
-    ข้อความที่พิมพ์จะไม่ถูกส่งไปยัง AI API
+    ทดลองประมวลผลบนอุปกรณ์ของคุณ
+    ไม่ส่งรายละเอียดรายการค้าไปยัง AI API
   </p>
-  <p id="aiStatus" class="status">
-    ยังไม่ได้โหลดโมเดล AI
+  <p id="aiStatus" class="status" role="status">
+    พร้อมเริ่มต้น
   </p>
   <label for="aiInput">รายละเอียดรายการค้า</label>
   <textarea id="aiInput"
     placeholder="เช่น ซื้ออุปกรณ์สำนักงาน 1,000 บาท จ่ายเงินสด"></textarea>
   <button id="aiStart" class="secondary">
-    1. โหลด Small AI
+    โหลด Small AI
   </button>
-  <button id="aiAnalyze" class="primary" disabled
-    style="margin-top:10px">
-    2. วิเคราะห์ด้วย AI
+  <button id="aiAnalyze" class="primary"
+    disabled style="margin-top:10px">
+    วิเคราะห์ด้วย AI
   </button>
-  <div id="aiResult" class="note"
-    style="margin-top:16px;white-space:pre-wrap"></div>
+  <pre id="aiResult" class="note"
+    style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
 `;
 
 const main = document.querySelector("main");
-const privacyCard = [...main.querySelectorAll(".card")]
-  .find(el => el.textContent.includes("ความเป็นส่วนตัว"));
-
-main.insertBefore(card, privacyCard || null);
+if (!main) {
+  document.body.appendChild(card);
+} else {
+  main.appendChild(card);
+}
 
 const status = document.getElementById("aiStatus");
 const startButton = document.getElementById("aiStart");
@@ -48,11 +48,12 @@ const input = document.getElementById("aiInput");
 const output = document.getElementById("aiResult");
 
 startButton.addEventListener("click", async () => {
-  if (generator) return;
+  if (generator || busy) return;
 
+  busy = true;
   startButton.disabled = true;
-  status.textContent =
-    "กำลังโหลดไลบรารีและโมเดล โปรดรอและอย่าปิดหน้านี้";
+  status.textContent = "กำลังโหลดโมเดล กรุณารอ...";
+  output.textContent = "";
 
   try {
     loading ||= pipeline("text-generation", MODEL, {
@@ -60,16 +61,18 @@ startButton.addEventListener("click", async () => {
     });
 
     generator = await loading;
+
     status.textContent =
-      "โหลดโมเดลสำเร็จ ข้อความจะประมวลผลในเบราว์เซอร์";
+      "โหลดโมเดลสำเร็จ พร้อมวิเคราะห์";
     analyzeButton.disabled = false;
     startButton.textContent = "โหลดโมเดลแล้ว";
   } catch (error) {
     loading = null;
     status.textContent =
-      "โหลดโมเดลไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตและลองใหม่";
+      "โหลดไม่สำเร็จ: " + (error?.message || String(error));
     startButton.disabled = false;
-    console.error(error);
+  } finally {
+    busy = false;
   }
 });
 
@@ -80,35 +83,40 @@ analyzeButton.addEventListener("click", async () => {
     output.textContent = "กรุณากรอกรายละเอียดรายการค้า";
     return;
   }
+  if (!generator || busy) {
+    output.textContent = "กรุณาโหลดโมเดลให้สำเร็จก่อน";
+    return;
+  }
 
+  busy = true;
   analyzeButton.disabled = true;
-  output.textContent = "AI กำลังวิเคราะห์...";
+  output.textContent =
+    "กำลังสร้างคำตอบ... โมเดลอาจใช้เวลาสักครู่";
 
   try {
-    const prompt = `
-You are an accounting assistant.
-Analyze this transaction: ${text}
-
-Explain the likely transaction type and possible debit
-and credit accounts. State assumptions and uncertainty.
-Do not invent Thai tax rules. This is a preliminary
-suggestion, not verified accounting or tax advice.
-
-Answer:
-`;
+    const prompt =
+      "Transaction: " + text + "\n" +
+      "Explain the transaction and suggest possible debit " +
+      "and credit accounts. State assumptions. " +
+      "If uncertain, say so. Do not claim tax compliance. " +
+      "This is only a preliminary suggestion.\nAnswer:";
 
     const result = await generator(prompt, {
-      max_new_tokens: 160,
+      max_new_tokens: 100,
       do_sample: false
     });
 
+    const generated = result?.[0]?.generated_text;
     output.textContent =
-      result[0]?.generated_text || "ไม่พบผลลัพธ์";
+      typeof generated === "string"
+        ? generated.slice(prompt.length).trim() || generated
+        : JSON.stringify(generated ?? result, null, 2);
   } catch (error) {
     output.textContent =
-      "เกิดข้อผิดพลาดในการวิเคราะห์ กรุณาลองใหม่";
-    console.error(error);
+      "วิเคราะห์ไม่สำเร็จ: " +
+      (error?.message || String(error));
   } finally {
+    busy = false;
     analyzeButton.disabled = false;
   }
 });
