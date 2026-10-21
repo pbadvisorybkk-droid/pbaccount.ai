@@ -76,6 +76,7 @@ startButton.addEventListener("click", async () => {
   }
 });
 
+
 analyzeButton.addEventListener("click", async () => {
   const text = input.value.trim();
 
@@ -83,6 +84,7 @@ analyzeButton.addEventListener("click", async () => {
     output.textContent = "กรุณากรอกรายละเอียดรายการค้า";
     return;
   }
+
   if (!generator || busy) {
     output.textContent = "กรุณาโหลดโมเดลให้สำเร็จก่อน";
     return;
@@ -90,27 +92,59 @@ analyzeButton.addEventListener("click", async () => {
 
   busy = true;
   analyzeButton.disabled = true;
-  output.textContent =
-    "กำลังสร้างคำตอบ... โมเดลอาจใช้เวลาสักครู่";
+  output.textContent = "กำลังวิเคราะห์รายการค้า...";
 
   try {
-    const prompt =
-      "Transaction: " + text + "\n" +
-      "Explain the transaction and suggest possible debit " +
-      "and credit accounts. State assumptions. " +
-      "If uncertain, say so. Do not claim tax compliance. " +
-      "This is only a preliminary suggestion.\nAnswer:";
+    const prompt = `
+คุณเป็นผู้ช่วยอธิบายรายการบัญชีเบื้องต้น
+ตอบเป็นภาษาไทยเท่านั้น
 
-    const result = await generator(prompt, {
-      max_new_tokens: 100,
-      do_sample: false
-    });
+รายละเอียดรายการค้า:
+${text}
+
+ให้ตอบตามหัวข้อต่อไปนี้:
+1. สรุปรายการค้า
+2. เดบิต: ระบุชื่อบัญชีและเหตุผล
+3. เครดิต: ระบุชื่อบัญชีและเหตุผล
+4. ข้อสมมติที่ใช้ในการวิเคราะห์
+5. ข้อมูลที่ต้องถามเพิ่มเติม (ถ้ามี)
+
+กฎสำคัญ:
+- ห้ามสลับเดบิตและเครดิตโดยไม่มีเหตุผล
+- ห้ามสร้างรายการบัญชีซ้ำหลายข้อ
+- จำนวนเงินเดบิตรวมต้องเท่ากับเครดิตรวม
+- หากข้อมูลไม่เพียงพอ ให้แจ้งว่ายังสรุปไม่ได้
+- อย่าอ้างว่าผ่านการตรวจสอบภาษีแล้ว
+- ตอบสั้น กระชับ และใช้ภาษาไทย
+
+คำตอบ:
+`;
+
+    const result = await generator(
+      [{ role: "user", content: prompt }],
+      {
+        max_new_tokens: 120,
+        do_sample: false
+      }
+    );
 
     const generated = result?.[0]?.generated_text;
-    output.textContent =
-      typeof generated === "string"
-        ? generated.slice(prompt.length).trim() || generated
-        : JSON.stringify(generated ?? result, null, 2);
+
+    // รองรับทั้งผลลัพธ์แบบข้อความและแบบรายการข้อความ
+    let answer = "";
+
+    if (typeof generated === "string") {
+      answer = generated;
+    } else if (Array.isArray(generated)) {
+      answer = generated
+        .filter(item => item?.role === "assistant")
+        .map(item => item.content || "")
+        .join("\n");
+    }
+
+    output.textContent = answer.trim() ||
+      "ไม่สามารถสร้างคำตอบได้ กรุณาลองใหม่";
+
   } catch (error) {
     output.textContent =
       "วิเคราะห์ไม่สำเร็จ: " +
@@ -120,3 +154,4 @@ analyzeButton.addEventListener("click", async () => {
     analyzeButton.disabled = false;
   }
 });
+
